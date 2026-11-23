@@ -75,4 +75,13 @@ describe('Local Database & Offline Persistence Tests', () => {
     expect(restored).toBeDefined();
     expect(restored?.name).toBe('Test Landmine Press');
   });
+
+  it('rejects invalid or corrupted backup payloads gracefully', async () => {
+    // Malformed JSON
+    await expect(importData('not json')).rejects.toThrow('Invalid JSON');
+
+    // Missing version or recognizable tables
+    await expect(importData(JSON.stringify({ hello: 'world' }))).rejects.toThrow('Invalid backup file');
+    await expect(importData(JSON.stringify({ version: 1 }))).rejects.toThrow('No recognizable Gym Buddy data detected');
+  });
 });

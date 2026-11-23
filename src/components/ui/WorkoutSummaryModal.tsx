@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Trophy, CheckCircle, Flame, Dumbbell, Star } from 'lucide-react';
 import { WorkoutSummaryData } from '../../context/WorkoutContext';
 import { useSettings } from '../../context/SettingsContext';
+import { formatPRValue, formatVolume } from '../../utils/calculations';
 import { Button } from './Button';
 import { db } from '../../db';
 
@@ -11,15 +12,13 @@ interface WorkoutSummaryModalProps {
 }
 
 export const WorkoutSummaryModal: React.FC<WorkoutSummaryModalProps> = ({ data, onClose }) => {
-  const { formatWeightValue } = useSettings();
+  const { formatWeightValue, unit } = useSettings();
   const [rating, setRating] = useState<number>(data.session.rating || 5);
   const [notes, setNotes] = useState<string>(data.session.notes || '');
 
   const minutes = Math.round(data.session.durationSeconds / 60);
   const totalVolume = data.session.totalVolumeKg;
-  const volumeString = totalVolume >= 1000 
-    ? `${(totalVolume / 1000).toFixed(2)} tonnes`
-    : formatWeightValue(totalVolume);
+  const volumeString = formatVolume(totalVolume, unit);
 
   const handleSaveAndClose = async () => {
     if (rating !== data.session.rating || notes !== data.session.notes) {
@@ -85,7 +84,7 @@ export const WorkoutSummaryModal: React.FC<WorkoutSummaryModalProps> = ({ data, 
                   <div key={pr.id} className="flex items-center justify-between text-xs py-1 border-t border-amber-500/20">
                     <span className="text-[#F3F4F6] font-medium">{pr.exerciseName}</span>
                     <span className="font-numeric font-semibold text-amber-300">
-                      {pr.value} {pr.type === 'reps_at_weight' ? 'reps' : 'kg'}
+                      {formatPRValue(pr, unit)}
                     </span>
                   </div>
                 ))}

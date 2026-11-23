@@ -16,6 +16,7 @@ export interface RestTimerState {
   active: boolean;
   totalDuration: number;
   remaining: number;
+  targetEndTime?: number;
   exerciseName?: string;
   setIndex?: number;
 }
@@ -108,40 +109,66 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     restoreActiveWorkout();
   }, []);
 
-  // Main workout timer ticker
+  // Main workout timer ticker: calculate elapsed from startedAt timestamp
   useEffect(() => {
     if (activeSession) {
-      timerIntervalRef.current = window.setInterval(() => {
-        setElapsedSeconds(prev => prev + 1);
-      }, 1000);
+      const updateElapsed = () => {
+        const elapsed = Math.floor((Date.now() - activeSession.startedAt) / 1000);
+        setElapsedSeconds(elapsed > 0 ? elapsed : 0);
+      };
+      updateElapsed();
+      timerIntervalRef.current = window.setInterval(updateElapsed, 1000);
+
+      const handleVisibilityChange = () => {
+        if (!document.hidden) {
+          updateElapsed();
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      return () => {
+        if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
     } else {
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
       setElapsedSeconds(0);
     }
-    return () => {
-      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-    };
   }, [activeSession]);
 
-  // Rest timer ticker
+  // Rest timer ticker: calculate remaining from targetEndTime timestamp
   useEffect(() => {
-    if (restTimer.active && restTimer.remaining > 0) {
-      restTimerIntervalRef.current = window.setInterval(() => {
+    if (restTimer.active && restTimer.targetEndTime) {
+      const updateRest = () => {
         setRestTimer(prev => {
-          if (prev.remaining <= 1) {
+          if (!prev.active || !prev.targetEndTime) return prev;
+          const remaining = Math.max(0, Math.ceil((prev.targetEndTime - Date.now()) / 1000));
+          if (remaining <= 0) {
             sound.playTimerFinished();
-            return { ...prev, active: false, remaining: 0 };
+            return { ...prev, active: false, remaining: 0, targetEndTime: undefined };
           }
-          return { ...prev, remaining: prev.remaining - 1 };
+          return { ...prev, remaining };
         });
-      }, 1000);
+      };
+
+      updateRest();
+      restTimerIntervalRef.current = window.setInterval(updateRest, 500);
+
+      const handleVisibilityChange = () => {
+        if (!document.hidden) {
+          updateRest();
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      return () => {
+        if (restTimerIntervalRef.current) clearInterval(restTimerIntervalRef.current);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
     } else {
       if (restTimerIntervalRef.current) clearInterval(restTimerIntervalRef.current);
     }
-    return () => {
-      if (restTimerIntervalRef.current) clearInterval(restTimerIntervalRef.current);
-    };
-  }, [restTimer.active, restTimer.remaining]);
+  }, [restTimer.active, restTimer.targetEndTime]);
 
   // Query last completed performance for an exercise
   const getLastPerformanceForExercise = useCallback(async (exerciseId: string): Promise<SessionSet[]> => {
@@ -299,10 +326,12 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const settings = await getUserSettings();
       if (settings.autoStartTimer) {
         const restDuration = ex ? ex.defaultRestSeconds : settings.defaultRestSeconds;
+        const targetEndTime = Date.now() + restDuration * 1000;
         setRestTimer({
           active: true,
           totalDuration: restDuration,
           remaining: restDuration,
+          targetEndTime,
           exerciseName,
           setIndex: updatedSet.setIndex,
         });
@@ -312,13 +341,17 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Update set weight, reps, rpe, or type
   const updateSet = useCallback(async (setId: string, updates: Partial<SessionSet>) => {
-    const target = sessionSets.find(s => s.id === setId);
-    if (!target) return;
-
-    const modified = { ...target, ...updates };
-    setSessionSets(prev => prev.map(s => s.id === setId ? modified : s));
-    await db.sessionSets.put(modified);
-  }, [sessionSets]);
+    let modified: SessionSet | undefined;
+    setSessionSets(prev => {
+      const target = prev.find(s => s.id === setId);
+      if (!target) return prev;
+      modified = { ...target, ...updates };
+      return prev.map(s => s.id === setId ? modified! : s);
+    });
+    if (modified) {
+      await db.sessionSets.put(modified);
+    }
+  }, []);
 
   // Add next set to an exercise
   const addSet = useCallback(async (exerciseId: string) => {
@@ -391,9 +424,13 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Rest timer adjustments
   const adjustRestTimer = useCallback((seconds: number) => {
     setRestTimer(prev => {
-      const nextRemaining = Math.max(0, prev.remaining + seconds);
+      const now = Date.now();
+      const currentTarget = prev.targetEndTime && prev.targetEndTime > now ? prev.targetEndTime : now + prev.remaining * 1000;
+      const nextTarget = currentTarget + seconds * 1000;
+      const nextRemaining = Math.max(0, Math.ceil((nextTarget - now) / 1000));
       return {
         ...prev,
+        targetEndTime: nextTarget,
         remaining: nextRemaining,
         totalDuration: Math.max(prev.totalDuration, nextRemaining),
         active: nextRemaining > 0,
@@ -402,7 +439,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const skipRestTimer = useCallback(() => {
-    setRestTimer(prev => ({ ...prev, active: false, remaining: 0 }));
+    setRestTimer(prev => ({ ...prev, active: false, remaining: 0, targetEndTime: undefined }));
   }, []);
 
   // Finish Workout

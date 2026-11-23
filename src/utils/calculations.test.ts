@@ -5,6 +5,10 @@ import {
   kgToLb, 
   lbToKg, 
   formatWeight, 
+  displayWeight,
+  storeWeight,
+  formatPRValue,
+  formatVolume,
   evaluatePRs, 
   suggestProgression 
 } from './calculations';
@@ -33,6 +37,22 @@ describe('Calculations Utility', () => {
     expect(formatWeight(82.5, 'kg')).toBe('82.5 kg');
     expect(formatWeight(80, 'kg')).toBe('80 kg');
     expect(formatWeight(100, 'lb')).toBe('220.5 lb');
+
+    // displayWeight and storeWeight
+    expect(displayWeight(100, 'kg')).toBe(100);
+    expect(displayWeight(100, 'lb')).toBe(220.5);
+    expect(storeWeight(220.5, 'lb')).toBe(100);
+    expect(storeWeight(100, 'kg')).toBe(100);
+
+    // formatPRValue
+    expect(formatPRValue({ type: 'weight', value: 100 }, 'kg')).toBe('100 kg');
+    expect(formatPRValue({ type: 'weight', value: 100 }, 'lb')).toBe('220.5 lb');
+    expect(formatPRValue({ type: 'reps_at_weight', value: 12, secondaryValue: 80 }, 'lb')).toBe('12 reps');
+
+    // formatVolume
+    expect(formatVolume(500, 'kg')).toBe('500 kg');
+    expect(formatVolume(2500, 'kg')).toBe('2.50 tonnes');
+    expect(formatVolume(1000, 'lb')).toBe('2,205 lb');
   });
 
   it('calculates total completed volume', () => {
@@ -82,6 +102,66 @@ describe('Calculations Utility', () => {
     expect(result.types).toContain('weight');
     expect(result.types).toContain('est_1rm');
     expect(result.newRecords.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('correctly compares against maximum historical PR when multiple records exist', () => {
+    // History contains an older PR of 80kg, followed by a later PR of 100kg
+    const existingPRs: PersonalRecord[] = [
+      {
+        id: 'pr_1',
+        exerciseId: 'ex_bench',
+        type: 'weight',
+        value: 80,
+        secondaryValue: 5,
+        achievedAt: 1000,
+        sessionId: 's1',
+      },
+      {
+        id: 'pr_2',
+        exerciseId: 'ex_bench',
+        type: 'weight',
+        value: 100,
+        secondaryValue: 5,
+        achievedAt: 2000,
+        sessionId: 's2',
+      },
+      {
+        id: 'pr_3',
+        exerciseId: 'ex_bench',
+        type: 'est_1rm',
+        value: 116.7,
+        achievedAt: 2000,
+        sessionId: 's2',
+      },
+      {
+        id: 'pr_4',
+        exerciseId: 'ex_bench',
+        type: 'reps_at_weight',
+        value: 5,
+        secondaryValue: 100,
+        achievedAt: 2000,
+        sessionId: 's2',
+      },
+    ];
+
+    // Lift 90kg for 5 reps:
+    // Higher than 80kg (old PR), but LOWER than 100kg (current max PR).
+    // Est 1RM = 90 * (1 + 5/30) = 105kg, which is LOWER than 116.7kg.
+    // MUST NOT trigger a PR!
+    const subMaxSet: SessionSet = {
+      id: 'set_sub',
+      sessionId: 's3',
+      exerciseId: 'ex_bench',
+      setIndex: 1,
+      type: 'normal',
+      weight: 90,
+      reps: 5,
+      isCompleted: true,
+    };
+
+    const res = evaluatePRs(subMaxSet, 'Barbell Bench Press', existingPRs);
+    expect(res.isPR).toBe(false);
+    expect(res.types).toEqual([]);
   });
 
   it('ignores warmup sets and uncompleted sets for PR detection', () => {

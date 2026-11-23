@@ -27,7 +27,51 @@ export function parseWeightInput(displayValue: number, unit: WeightUnit = 'kg'):
   if (unit === 'lb') {
     return lbToKg(displayValue);
   }
-  return displayValue;
+  return Math.round(displayValue * 10) / 10;
+}
+
+/**
+ * Converts stored canonical weight (kg) to display value in user's unit
+ */
+export function displayWeight(weightKg: number, unit: WeightUnit = 'kg'): number {
+  if (unit === 'lb') {
+    return kgToLb(weightKg);
+  }
+  return Math.round(weightKg * 10) / 10;
+}
+
+/**
+ * Converts user display input to canonical stored weight in kg
+ */
+export function storeWeight(displayVal: number, unit: WeightUnit = 'kg'): number {
+  return parseWeightInput(displayVal, unit);
+}
+
+/**
+ * Format personal record value respecting user unit preference
+ */
+export function formatPRValue(
+  pr: { type: PRType; value: number; secondaryValue?: number },
+  unit: WeightUnit = 'kg'
+): string {
+  if (pr.type === 'reps_at_weight') {
+    return `${pr.value} reps`;
+  }
+  return formatWeight(pr.value, unit);
+}
+
+/**
+ * Format volume respecting user unit preference
+ */
+export function formatVolume(volumeKg: number, unit: WeightUnit = 'kg'): string {
+  if (unit === 'lb') {
+    const totalLb = Math.round(kgToLb(volumeKg));
+    return `${totalLb.toLocaleString()} lb`;
+  }
+  if (volumeKg >= 1000) {
+    return `${(volumeKg / 1000).toFixed(2)} tonnes`;
+  }
+  return `${Math.round(volumeKg * 10) / 10} kg`;
 }
 
 /**
@@ -78,9 +122,10 @@ export function evaluatePRs(
   const newRecords: Omit<PersonalRecord, 'id'>[] = [];
   const now = Date.now();
 
-  // 1. Check Weight PR
-  const weightPR = exercisePRs.find(pr => pr.type === 'weight');
-  if (!weightPR || set.weight > weightPR.value) {
+  // 1. Check Weight PR: compare against highest all-time recorded weight
+  const weightPRs = exercisePRs.filter(pr => pr.type === 'weight');
+  const maxWeightPR = weightPRs.length > 0 ? Math.max(...weightPRs.map(pr => pr.value)) : null;
+  if (maxWeightPR === null || set.weight > maxWeightPR) {
     detectedTypes.push('weight');
     newRecords.push({
       exerciseId: set.exerciseId,
@@ -94,10 +139,26 @@ export function evaluatePRs(
   }
 
   // 2. Check Rep PR at this specific weight
-  const repPR = exercisePRs.find(
+  // A set is only a rep PR if the user has NOT previously performed >= reps at >= weight.
+  const hasSuperiorOrEqualPerformance = exercisePRs.some(pr => {
+    let prWeight = 0;
+    let prReps = 0;
+    if (pr.type === 'weight') {
+      prWeight = pr.value;
+      prReps = pr.secondaryValue || 1;
+    } else if (pr.type === 'reps_at_weight') {
+      prReps = pr.value;
+      prWeight = pr.secondaryValue || 0;
+    }
+    return prWeight >= set.weight - 0.2 && prReps >= set.reps;
+  });
+
+  const matchingRepPRs = exercisePRs.filter(
     pr => pr.type === 'reps_at_weight' && Math.abs((pr.secondaryValue || 0) - set.weight) < 0.2
   );
-  if (!repPR || set.reps > repPR.value) {
+  const maxRepPRAtWeight = matchingRepPRs.length > 0 ? Math.max(...matchingRepPRs.map(pr => pr.value)) : 0;
+
+  if (!hasSuperiorOrEqualPerformance && set.reps > maxRepPRAtWeight) {
     // Only record if not redundant with weight PR
     if (!detectedTypes.includes('weight')) {
       detectedTypes.push('reps_at_weight');
@@ -115,8 +176,9 @@ export function evaluatePRs(
 
   // 3. Check Estimated 1RM PR
   const est1RM = calculateEst1RM(set.weight, set.reps);
-  const oneRMPR = exercisePRs.find(pr => pr.type === 'est_1rm');
-  if (!oneRMPR || est1RM > oneRMPR.value) {
+  const oneRMPRs = exercisePRs.filter(pr => pr.type === 'est_1rm');
+  const maxOneRMPR = oneRMPRs.length > 0 ? Math.max(...oneRMPRs.map(pr => pr.value)) : null;
+  if (maxOneRMPR === null || est1RM > maxOneRMPR) {
     detectedTypes.push('est_1rm');
     newRecords.push({
       exerciseId: set.exerciseId,
