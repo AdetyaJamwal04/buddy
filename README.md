@@ -11,14 +11,17 @@ Gym Buddy is a mobile-first Progressive Web App (PWA) built from scratch to disa
 
 - **100% Local-First & Offline-Ready**: Powered by IndexedDB via Dexie.js and Service Workers. Operates seamlessly in basement gyms, airplane mode, or spotty cellular reception.
 - **Instant Training Access**: Open the app and begin today's scheduled split with a single tap.
-- **Tactile Set Logging**: Large increment/decrement targets, automatic smart defaults prefilled from your last session, and set tagging (Warm-up, Normal, Failure).
-- **Intelligent Rest Timer**: Automatically triggers upon set completion with floating countdown HUD, +15s / +30s extensions, skip action, and subtle acoustic chimes synthesized via the Web Audio API (zero audio file downloads required).
+- **Screen Wake Lock Integration**: Automatically keeps the screen awake via the Screen Wake Lock API during live workouts to eliminate constant phone unlocking between sets.
+- **Tactile Set Logging & Stepper Hold**: Large increment/decrement targets, rapid long-press stepping with continuous value resolution, automatic smart defaults prefilled from your last session, and set tagging (Warm-up, Normal, Failure).
+- **Intelligent Background & Lock-Screen Rest Timer**: Tracks against absolute wall-clock target timestamps (`Date.now()`) with `visibilitychange` listeners. Never drifts or pauses when your phone is locked or backgrounded; complete with floating countdown HUD, +15s / +30s extensions, skip action, and subtle acoustic chimes synthesized via the Web Audio API with automatic initial gesture unlock.
+- **Universal Unit System**: Full symmetric bi-directional conversion between kilograms (`kg`) and pounds (`lb`). Canonical state is stored in `kg` and cleanly converted for live stepper inputs, PRs, volume calculations, and body measurements.
 - **Automatic Progressive Overload**: Transparent suggestions based on your previous performance without pseudoscience.
-- **Personal Record (PR) Engine**: Real-time detection of Heaviest Weight, Rep Record at Weight, and Estimated 1RM (Epley formula: $w \times (1 + r/30)$).
+- **Accurate Personal Record (PR) Engine**: Real-time evaluation against all-time maximum PR benchmarks for Heaviest Weight, Rep Record at Weight, and Estimated 1RM (Epley formula: $w \times (1 + r/30)$), eliminating false positives on sub-maximal sets.
+- **Interactive Progression Curves**: Visual strength graphs with Y-axis boundary labels, date callouts, and instant metric switching between raw Weight Lifted and Estimated 1RM.
 - **Weekly Workout Planner & Routine Builder**: Drag and configure splits (PPL, Upper/Lower, Bro Split, Full Body) with customizable rest days and exercise targets.
 - **Supplement Tracking & Adherence**: Categorized by timing (Morning, Pre-Workout, Post-Workout, Night) with 1-tap adherence tracking and 7-day adherence scoring.
 - **Private Body Measurement Log**: Track bodyweight, waist, chest, arms, and body fat percentage stored purely on-device.
-- **Data Portability & Safety**: Instant full JSON export, JSON backup restoration, and safe reset capabilities.
+- **Validated Data Portability & Safety**: Instant full JSON export, schema/version-validated backup restoration, and safe reset capabilities.
 
 ---
 
@@ -31,7 +34,7 @@ Gym Buddy is a mobile-first Progressive Web App (PWA) built from scratch to disa
 | **Styling & Design System** | Tailwind CSS v4 + Vanilla CSS Variables | Editorial dark theme (`#0D0E11` charcoal base), safe area padding (`env(safe-area-inset-top)` / `bottom`) |
 | **Local Database** | Dexie.js (IndexedDB wrapper) | Transactional, structured local-first persistence with zero network latency |
 | **PWA & Offline Caching**| `vite-plugin-pwa` (Workbox) | Offline precaching of app shell, manifest, icons, and dynamic resources |
-| **Sound & Haptics** | Web Audio API + Vibration API | Clean synthetic frequency sweeps and chimes; works fully offline |
+| **Hardware & Native APIs** | Screen Wake Lock API + Web Audio + Vibration | Keeps display active during sets; zero-dependency synthetic frequency sweeps; haptic pulses |
 | **Testing** | Vitest + `fake-indexeddb` | Unit tests for calculations, PR engine, units conversion, and database storage |
 
 ---
@@ -86,11 +89,11 @@ npm test
 
 ### Tested Domains:
 - **Estimated 1RM**: Accuracy of Epley formula across various rep ranges.
-- **Unit Conversions**: Symmetric conversion between kilograms (`kg`) and pounds (`lb`).
-- **Volume Calculations**: Strict non-zero completed working set accumulation.
-- **PR Detection Engine**: Differentiation between weight records, rep records, and false positives.
+- **Unit Conversions & State Normalization**: Symmetric conversion between kilograms (`kg`) and pounds (`lb`), display conversion, and storage normalization.
+- **Volume Calculations**: Strict non-zero completed working set accumulation with imperial formatting.
+- **PR Detection Engine**: Accurate detection against all-time maximum records; differentiation between weight records, rep records, and elimination of false positives on sub-maximal sets.
 - **Progressive Overload Logic**: Recommendation rules when hitting upper rep limits vs holding weights.
-- **Database Seeding & Recovery**: Initial population, JSON backup export, and JSON restore integrity.
+- **Database Seeding, Recovery & Validation**: Initial population, JSON backup export, JSON restore integrity, and corrupted/invalid payload rejection.
 
 ---
 
