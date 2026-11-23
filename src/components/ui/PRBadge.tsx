@@ -1,6 +1,8 @@
 import React from 'react';
 import { Trophy } from 'lucide-react';
 import { PersonalRecord } from '../../types';
+import { useSettings } from '../../context/SettingsContext';
+import { formatPRValue } from '../../utils/calculations';
 
 interface PRNotificationProps {
   prs: PersonalRecord[];
@@ -8,6 +10,7 @@ interface PRNotificationProps {
 }
 
 export const PRNotification: React.FC<PRNotificationProps> = ({ prs, onDismiss }) => {
+  const { unit } = useSettings();
   if (prs.length === 0) return null;
 
   const latest = prs[prs.length - 1];
@@ -39,7 +42,7 @@ export const PRNotification: React.FC<PRNotificationProps> = ({ prs, onDismiss }
           </p>
           <p className="text-xs text-[#D1D5DB] font-numeric mt-0.5">
             <span className="font-semibold text-amber-300">
-              {latest.value} {latest.type === 'reps_at_weight' ? 'reps' : 'kg'}
+              {formatPRValue(latest, unit)}
             </span>
             {latest.secondaryValue && latest.type === 'weight' && (
               <span className="text-[#9CA3AF]"> × {latest.secondaryValue} reps</span>

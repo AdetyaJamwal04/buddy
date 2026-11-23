@@ -29,11 +29,17 @@ export const NumericStepper: React.FC<NumericStepperProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value.toString());
   const timerRef = useRef<number | null>(null);
+  const valueRef = useRef(value);
+
+  // Keep valueRef updated with latest prop value
+  valueRef.current = value;
 
   const handleStep = (delta: number) => {
     if (disabled) return;
     sound.triggerHaptic([10]);
-    const next = Math.max(min, Math.min(max, Math.round((value + delta) * 10) / 10));
+    const current = valueRef.current;
+    const next = Math.max(min, Math.min(max, Math.round((current + delta) * 10) / 10));
+    valueRef.current = next;
     onChange(next);
   };
 
@@ -95,6 +101,7 @@ export const NumericStepper: React.FC<NumericStepperProps> = ({
         onPointerDown={() => startHold(-step)}
         onPointerUp={stopHold}
         onPointerLeave={stopHold}
+        onPointerCancel={stopHold}
         disabled={disabled || value <= min}
         className={cn(
           'flex items-center justify-center text-[#9CA3AF] hover:text-[#F3F4F6] hover:bg-[#1E232E] active:bg-[#262D3B] disabled:opacity-30 disabled:pointer-events-none transition-colors touch-manipulation',
@@ -139,6 +146,7 @@ export const NumericStepper: React.FC<NumericStepperProps> = ({
         onPointerDown={() => startHold(step)}
         onPointerUp={stopHold}
         onPointerLeave={stopHold}
+        onPointerCancel={stopHold}
         disabled={disabled || value >= max}
         className={cn(
           'flex items-center justify-center text-[#9CA3AF] hover:text-[#F3F4F6] hover:bg-[#1E232E] active:bg-[#262D3B] disabled:opacity-30 disabled:pointer-events-none transition-colors touch-manipulation',

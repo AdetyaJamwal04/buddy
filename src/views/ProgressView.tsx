@@ -15,7 +15,7 @@ import {
   BodyMeasurement 
 } from '../types';
 import { useSettings } from '../context/SettingsContext';
-import { calculateEst1RM } from '../utils/calculations';
+import { calculateEst1RM, formatPRValue, formatVolume, displayWeight, storeWeight } from '../utils/calculations';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -31,6 +31,7 @@ export const ProgressView: React.FC = () => {
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>('ex_bench_press');
   const [exerciseHistoryPoints, setExerciseHistoryPoints] = useState<{ date: string; maxWeight: number; est1RM: number }[]>([]);
   const [timeRange, setTimeRange] = useState<'30D' | '3M' | '1Y' | 'ALL'>('3M');
+  const [chartMetric, setChartMetric] = useState<'weight' | 'est1rm'>('weight');
 
   // PRs state
   const [records, setRecords] = useState<PersonalRecord[]>([]);
@@ -41,7 +42,7 @@ export const ProgressView: React.FC = () => {
   // Body Measurements state
   const [bodyMeasurements, setBodyMeasurements] = useState<BodyMeasurement[]>([]);
   const [isLogBodyModalOpen, setIsLogBodyModalOpen] = useState(false);
-  const [inputWeight, setInputWeight] = useState<number>(75);
+  const [inputWeight, setInputWeight] = useState<number>(() => displayWeight(75, unit));
   const [inputWaist, setInputWaist] = useState<number>(82);
   const [inputChest, setInputChest] = useState<number>(100);
   const [inputArms, setInputArms] = useState<number>(38);
@@ -49,7 +50,7 @@ export const ProgressView: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [unit]);
 
   useEffect(() => {
     if (selectedExerciseId) {
@@ -76,7 +77,7 @@ export const ProgressView: React.FC = () => {
       setBodyMeasurements(measurements);
       if (measurements.length > 0) {
         const last = measurements[measurements.length - 1];
-        if (last.weightKg) setInputWeight(last.weightKg);
+        if (last.weightKg) setInputWeight(displayWeight(last.weightKg, unit));
         if (last.waistCm) setInputWaist(last.waistCm);
         if (last.chestCm) setInputChest(last.chestCm);
         if (last.armsCm) setInputArms(last.armsCm);
@@ -152,7 +153,7 @@ export const ProgressView: React.FC = () => {
       id: `meas_${Date.now()}`,
       dateStr: todayStr,
       recordedAt: Date.now(),
-      weightKg: inputWeight,
+      weightKg: storeWeight(inputWeight, unit),
       waistCm: inputWaist,
       chestCm: inputChest,
       armsCm: inputArms,
@@ -177,29 +178,75 @@ export const ProgressView: React.FC = () => {
       );
     }
 
-    const padding = 24;
+    const paddingLeft = 40;
+    const paddingRight = 20;
+    const paddingTop = 20;
+    const paddingBottom = 24;
     const width = 360;
     const height = 160;
 
-    const values = exerciseHistoryPoints.map(p => p.maxWeight);
-    const minVal = Math.min(...values) * 0.9;
-    const maxVal = Math.max(...values) * 1.05;
+    const values = exerciseHistoryPoints.map(p => chartMetric === 'weight' ? p.maxWeight : p.est1RM);
+    const rawMin = Math.min(...values);
+    const rawMax = Math.max(...values);
+    const minVal = Math.max(0, rawMin * 0.9);
+    const maxVal = Math.max(rawMax * 1.05, minVal + 5);
     const range = maxVal - minVal || 1;
 
     const coords = exerciseHistoryPoints.map((p, idx) => {
-      const x = padding + (idx / (exerciseHistoryPoints.length - 1)) * (width - padding * 2);
-      const y = height - padding - ((p.maxWeight - minVal) / range) * (height - padding * 2);
-      return { x, y, ...p };
+      const val = chartMetric === 'weight' ? p.maxWeight : p.est1RM;
+      const x = paddingLeft + (idx / (exerciseHistoryPoints.length - 1)) * (width - paddingLeft - paddingRight);
+      const y = height - paddingBottom - ((val - minVal) / range) * (height - paddingTop - paddingBottom);
+      return { x, y, val, ...p };
     });
 
     const pathData = coords.reduce((acc, pt, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`, '');
 
     return (
-      <div className="bg-[#10131A] border border-[#202532] rounded-xl p-3">
+      <div className="bg-[#10131A] border border-[#202532] rounded-xl p-3.5 space-y-3">
+        {/* Metric Selector Toggle */}
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] uppercase font-bold tracking-wider text-[#8E95A5]">
+            Progression Curve
+          </span>
+          <div className="flex bg-[#0D0E11] p-0.5 rounded-lg border border-[#222836]">
+            <button
+              type="button"
+              onClick={() => setChartMetric('weight')}
+              className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors ${
+                chartMetric === 'weight'
+                  ? 'bg-emerald-500 text-black font-bold'
+                  : 'text-[#8E95A5] hover:text-[#F3F4F6]'
+              }`}
+            >
+              Weight Lifted
+            </button>
+            <button
+              type="button"
+              onClick={() => setChartMetric('est1rm')}
+              className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors ${
+                chartMetric === 'est1rm'
+                  ? 'bg-emerald-500 text-black font-bold'
+                  : 'text-[#8E95A5] hover:text-[#F3F4F6]'
+              }`}
+            >
+              Est. 1RM
+            </button>
+          </div>
+        </div>
+
         <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-44 overflow-visible">
-          <line x1={padding} y1={padding} x2={width - padding} y2={padding} stroke="#222836" strokeDasharray="3 3" />
-          <line x1={padding} y1={height / 2} x2={width - padding} y2={height / 2} stroke="#222836" strokeDasharray="3 3" />
-          <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#222836" />
+          {/* Reference Grid lines */}
+          <line x1={paddingLeft} y1={paddingTop} x2={width - paddingRight} y2={paddingTop} stroke="#222836" strokeDasharray="3 3" />
+          <line x1={paddingLeft} y1={(paddingTop + height - paddingBottom) / 2} x2={width - paddingRight} y2={(paddingTop + height - paddingBottom) / 2} stroke="#222836" strokeDasharray="3 3" />
+          <line x1={paddingLeft} y1={height - paddingBottom} x2={width - paddingRight} y2={height - paddingBottom} stroke="#222836" />
+
+          {/* Y-axis Weight Labels */}
+          <text x={paddingLeft - 6} y={paddingTop + 4} textAnchor="end" fill="#10B981" fontSize="9" fontWeight="bold">
+            {formatWeightValue(rawMax)}
+          </text>
+          <text x={paddingLeft - 6} y={height - paddingBottom} textAnchor="end" fill="#6B7280" fontSize="9">
+            {formatWeightValue(rawMin)}
+          </text>
 
           <defs>
             <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
@@ -209,7 +256,7 @@ export const ProgressView: React.FC = () => {
           </defs>
 
           <path
-            d={`${pathData} L ${coords[coords.length - 1].x} ${height - padding} L ${coords[0].x} ${height - padding} Z`}
+            d={`${pathData} L ${coords[coords.length - 1].x} ${height - paddingBottom} L ${coords[0].x} ${height - paddingBottom} Z`}
             fill="url(#chartGrad)"
           />
 
@@ -229,8 +276,9 @@ export const ProgressView: React.FC = () => {
           ))}
         </svg>
 
-        <div className="flex justify-between items-center text-[10px] text-[#8E95A5] pt-2 px-1 font-numeric">
+        <div className="flex justify-between items-center text-[10px] text-[#8E95A5] pt-1 px-1 font-numeric border-t border-[#1C212B]">
           <span>{exerciseHistoryPoints[0].date}</span>
+          <span className="text-emerald-400 font-semibold">Latest: {formatWeightValue(coords[coords.length - 1].val)}</span>
           <span>{exerciseHistoryPoints[exerciseHistoryPoints.length - 1].date}</span>
         </div>
       </div>
@@ -407,7 +455,7 @@ export const ProgressView: React.FC = () => {
 
                     <div className="flex items-baseline justify-between pt-1">
                       <span className="font-numeric font-bold text-base text-amber-300">
-                        {pr.value} {pr.type === 'reps_at_weight' ? 'reps' : 'kg'}
+                        {formatPRValue(pr, unit)}
                         {pr.secondaryValue && pr.type === 'weight' && (
                           <span className="text-xs text-[#9CA3AF] font-normal"> × {pr.secondaryValue} reps</span>
                         )}
@@ -444,9 +492,7 @@ export const ProgressView: React.FC = () => {
                 Total Volume Lifted
               </span>
               <p className="font-numeric font-bold text-xl text-[#F3F4F6]">
-                {pastSessions.reduce((sum, s) => sum + s.totalVolumeKg, 0) >= 1000
-                  ? `${(pastSessions.reduce((sum, s) => sum + s.totalVolumeKg, 0) / 1000).toFixed(1)} tonnes`
-                  : `${pastSessions.reduce((sum, s) => sum + s.totalVolumeKg, 0)} kg`}
+                {formatVolume(pastSessions.reduce((sum, s) => sum + s.totalVolumeKg, 0), unit)}
               </p>
             </Card>
           </div>
@@ -465,7 +511,7 @@ export const ProgressView: React.FC = () => {
                     </span>
                   </div>
                   <span className="font-numeric font-bold text-emerald-400">
-                    {s.totalVolumeKg >= 1000 ? `${(s.totalVolumeKg / 1000).toFixed(2)} t` : `${s.totalVolumeKg} kg`}
+                    {formatVolume(s.totalVolumeKg, unit)}
                   </span>
                 </div>
               ))}

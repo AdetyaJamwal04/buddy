@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { initDatabase } from './db';
+import { sound } from './utils/audio';
 import { SettingsProvider } from './context/SettingsContext';
 import { WorkoutProvider, useWorkout } from './context/WorkoutContext';
 import { AppLayout, TabType } from './components/layout/AppLayout';
@@ -70,6 +71,20 @@ export default function App() {
       }
     }
     init();
+
+    // Mobile audio policy unlock on first user gesture
+    const handleFirstGesture = () => {
+      sound.unlockAudio();
+      window.removeEventListener('click', handleFirstGesture);
+      window.removeEventListener('touchstart', handleFirstGesture);
+    };
+    window.addEventListener('click', handleFirstGesture, { passive: true });
+    window.addEventListener('touchstart', handleFirstGesture, { passive: true });
+
+    return () => {
+      window.removeEventListener('click', handleFirstGesture);
+      window.removeEventListener('touchstart', handleFirstGesture);
+    };
   }, []);
 
   if (!dbReady) {

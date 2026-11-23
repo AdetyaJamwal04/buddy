@@ -21,6 +21,7 @@ import {
 } from '../types';
 import { useWorkout } from '../context/WorkoutContext';
 import { useSettings } from '../context/SettingsContext';
+import { formatVolume } from '../utils/calculations';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -33,7 +34,7 @@ interface WorkoutsViewProps {
 
 export const WorkoutsView: React.FC<WorkoutsViewProps> = ({ onStartLiveWorkout }) => {
   const { startWorkout } = useWorkout();
-  const { formatWeightValue } = useSettings();
+  const { formatWeightValue, unit } = useSettings();
 
   const [activeTab, setActiveTab] = useState<'routines' | 'planner' | 'history'>('routines');
 
@@ -399,9 +400,7 @@ export const WorkoutsView: React.FC<WorkoutsViewProps> = ({ onStartLiveWorkout }
                         <span>{session.totalReps} reps</span>
                         <span>·</span>
                         <span className="text-emerald-400 font-semibold">
-                          {session.totalVolumeKg >= 1000 
-                            ? `${(session.totalVolumeKg / 1000).toFixed(2)} tonnes`
-                            : formatWeightValue(session.totalVolumeKg)}
+                          {formatVolume(session.totalVolumeKg, unit)}
                         </span>
                       </div>
                     </div>

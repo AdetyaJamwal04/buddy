@@ -19,7 +19,7 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
-import { suggestProgression } from '../utils/calculations';
+import { suggestProgression, displayWeight, storeWeight } from '../utils/calculations';
 
 interface LiveWorkoutViewProps {
   onBackToApp: () => void;
@@ -75,6 +75,36 @@ export const LiveWorkoutView: React.FC<LiveWorkoutViewProps> = ({ onBackToApp })
       setAvailableExercises(all);
     }
     loadLibrary();
+  }, []);
+
+  // Screen Wake Lock API to prevent mobile screen sleep during workout
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let wakeLock: any = null;
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await (navigator as unknown as { wakeLock: { request: (type: string) => Promise<unknown> } }).wakeLock.request('screen');
+        }
+      } catch {
+        // Wake lock denied or unsupported
+      }
+    }
+    requestWakeLock();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (wakeLock && typeof wakeLock.release === 'function') {
+        wakeLock.release().catch(() => {});
+      }
+    };
   }, []);
 
   const formatElapsed = (sec: number) => {
@@ -278,14 +308,14 @@ export const LiveWorkoutView: React.FC<LiveWorkoutViewProps> = ({ onBackToApp })
 
                         {/* Previous reference */}
                         <div className="col-span-2 text-left hidden sm:block font-numeric text-xs text-[#6B7280] truncate">
-                          {prevSet ? `${prevSet.weight} × ${prevSet.reps}` : '—'}
+                          {prevSet ? `${formatWeightValue(prevSet.weight)} × ${prevSet.reps}` : '—'}
                         </div>
 
                         {/* Weight Stepper */}
                         <div className="col-span-5 sm:col-span-4 flex justify-center">
                           <NumericStepper
-                            value={set.weight}
-                            onChange={val => updateSet(set.id, { weight: val })}
+                            value={displayWeight(set.weight, unit)}
+                            onChange={val => updateSet(set.id, { weight: storeWeight(val, unit) })}
                             step={weightStep}
                             min={0}
                             size="sm"

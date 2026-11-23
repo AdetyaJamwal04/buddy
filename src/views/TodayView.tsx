@@ -21,7 +21,7 @@ import { useSettings } from '../context/SettingsContext';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { suggestProgression } from '../utils/calculations';
+import { suggestProgression, formatPRValue } from '../utils/calculations';
 import { sound } from '../utils/audio';
 
 interface TodayViewProps {
@@ -36,7 +36,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   onNavigateToProgress,
 }) => {
   const { activeSession, startWorkout, getLastPerformanceForExercise } = useWorkout();
-  const { formatWeightValue } = useSettings();
+  const { formatWeightValue, unit } = useSettings();
 
   const [todaySchedule, setTodaySchedule] = useState<WeeklyScheduleEntry | null>(null);
   const [todayTemplate, setTodayTemplate] = useState<WorkoutTemplate | null>(null);
@@ -82,10 +82,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
         // Calculate Weekly Consistency
         const now = new Date();
-        const day = now.getDay();
-        const diffToMon = now.getDate() - day + (day === 0 ? -6 : 1);
-        const monday = new Date(now.setDate(diffToMon));
-        monday.setHours(0, 0, 0, 0);
+        const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - customDayIndex, 0, 0, 0, 0);
 
         const pastWeekSessions = await db.workoutSessions
           .where('completedAt')
@@ -100,8 +97,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
           const schedDay = allSchedule.find(s => s.dayIndex === idx);
           const isToday = idx === customDayIndex;
           
-          const dayDate = new Date(monday);
-          dayDate.setDate(monday.getDate() + idx);
+          const dayDate = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + idx);
           const dayStart = new Date(dayDate).setHours(0, 0, 0, 0);
           const dayEnd = new Date(dayDate).setHours(23, 59, 59, 999);
 
@@ -121,7 +117,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
         const latestPR = await db.personalRecords.orderBy('achievedAt').last();
         setRecentPR(latestPR || null);
 
-        const activeSups = await db.supplements.where('isActive').equals(1).toArray();
+        const allSups = await db.supplements.toArray();
+        const activeSups = allSups.filter(s => s.isActive);
         setTodaySupplements(activeSups);
 
         const logs = await db.supplementLogs.where('dateStr').equals(todayDateStr).toArray();
@@ -438,7 +435,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
                   {recentPR.exerciseName}
                 </p>
                 <p className="text-xs text-[#D1D5DB] font-numeric">
-                  {recentPR.value} {recentPR.type === 'reps_at_weight' ? 'reps' : 'kg'}
+                  {formatPRValue(recentPR, unit)}
                   {recentPR.secondaryValue && recentPR.type === 'weight' && (
                     <span className="text-[#9CA3AF]"> × {recentPR.secondaryValue} reps</span>
                   )}

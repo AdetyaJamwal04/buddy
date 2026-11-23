@@ -14,6 +14,11 @@ class SoundEngine {
     this.hapticsEnabled = haptics;
   }
 
+  // Ensure AudioContext is initialized and resumed on first user gesture
+  public unlockAudio() {
+    this.getContext();
+  }
+
   private getContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
     if (!this.ctx) {

@@ -164,7 +164,25 @@ export async function exportAllData(): Promise<string> {
  * Safe restore of user data from JSON
  */
 export async function importData(jsonString: string): Promise<void> {
-  const data = JSON.parse(jsonString) as Partial<BackupPayload>;
+  let data: Partial<BackupPayload>;
+  try {
+    data = JSON.parse(jsonString) as Partial<BackupPayload>;
+  } catch {
+    throw new Error('Invalid JSON: Could not parse backup file.');
+  }
+
+  if (!data || typeof data !== 'object') {
+    throw new Error('Invalid backup file: Root structure must be an object.');
+  }
+
+  if (typeof data.version !== 'number' || data.version < 1) {
+    throw new Error('Invalid backup file: Missing or unsupported version.');
+  }
+
+  const hasValidTables = Array.isArray(data.exercises) || Array.isArray(data.workoutTemplates) || typeof data.settings === 'object';
+  if (!hasValidTables) {
+    throw new Error('Invalid backup file: No recognizable Gym Buddy data detected.');
+  }
 
   await db.transaction('rw', [
     db.exercises,
